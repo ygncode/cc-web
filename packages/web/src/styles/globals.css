@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light theme (default) */
+  --color-background: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-surface-hover: #ebebeb;
+  --color-border: #e0e0e0;
+  --color-border-light: #d0d0d0;
+  --color-text: #1a1a1a;
+  --color-text-muted: #666666;
+  --color-text-secondary: #888888;
+  --color-accent: #a78bfa;
+  --color-accent-hover: #9171f0;
+  --color-scrollbar: #ccc;
+  --color-scrollbar-hover: #bbb;
+  --color-user-bubble: #f5f1eb;
+}
+
+.dark {
+  --color-background: #1a1a1a;
+  --color-surface: #242424;
+  --color-surface-hover: #2e2e2e;
+  --color-border: #2a2a2a;
+  --color-border-light: #3a3a3a;
+  --color-text: #e5e5e5;
+  --color-text-muted: #a0a0a0;
+  --color-text-secondary: #666666;
+  --color-accent: #a78bfa;
+  --color-accent-hover: #9171f0;
+  --color-scrollbar: #333;
+  --color-scrollbar-hover: #444;
+  --color-user-bubble: #3a3530;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
+}
+
+/* xterm.js styling */
+.xterm {
+  padding: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 4px;
+}
+
+/* Code block styling */
+pre,
+code {
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Monaco, monospace;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(167, 139, 250, 0.3);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 1px solid #a78bfa;
+  outline-offset: 2px;
+}
+
+/* Prevent text selection during resize */
+.select-none {
+  user-select: none;
+}

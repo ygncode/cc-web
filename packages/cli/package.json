@@ -1,0 +1,24 @@
+{
+  "name": "@cc-web/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "cc-web": "./dist/bin/cc-web.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build src/bin/cc-web.ts --outdir dist/bin --target bun",
+    "dev": "CC_WEB_CWD=${CC_WEB_CWD:-${INIT_CWD:-$PWD}} bun run src/bin/cc-web.ts",
+    "start": "CC_WEB_CWD=${CC_WEB_CWD:-${INIT_CWD:-$PWD}} bun run src/bin/cc-web.ts start"
+  },
+  "dependencies": {
+    "@cc-web/server": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  }
+}

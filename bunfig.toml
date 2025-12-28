@@ -1,0 +1,7 @@
+[install]
+# Use exact versions
+exact = true
+
+[run]
+# Silence Bun's script running messages
+silent = false
