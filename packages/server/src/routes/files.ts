@@ -212,3 +212,63 @@ fileRoutes.post("/upload", async (c) => {
 
   return c.json({ attachments });
 });
+
+/**
+ * Serve attachment files
+ * Path format: .context/attachments/<filename>
+ */
+fileRoutes.get("/attachment/*", async (c) => {
+  const cwd = c.get("cwd");
+  const storedPath = c.req.param("*");
+
+  if (!storedPath) {
+    return c.json({ error: "Path is required" }, 400);
+  }
+
+  // Decode the path and construct full path
+  const decodedPath = decodeURIComponent(storedPath);
+  const fullPath = path.resolve(cwd, decodedPath);
+
+  // Security check - ensure path is within attachments directory
+  const attachmentsDir = path.join(cwd, ".context", "attachments");
+  if (!fullPath.startsWith(attachmentsDir)) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  try {
+    const fileContent = await readFile(fullPath);
+    const stats = await stat(fullPath);
+
+    // Determine mime type from extension
+    const ext = path.extname(fullPath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+      ".svg": "image/svg+xml",
+      ".pdf": "application/pdf",
+      ".txt": "text/plain",
+      ".json": "application/json",
+      ".js": "text/javascript",
+      ".ts": "text/typescript",
+      ".html": "text/html",
+      ".css": "text/css",
+    };
+    const mimeType = mimeTypes[ext] || "application/octet-stream";
+
+    return new Response(fileContent, {
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Length": stats.size.toString(),
+        "Cache-Control": "public, max-age=31536000", // Cache for 1 year
+      },
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return c.json({ error: "File not found" }, 404);
+    }
+    return c.json({ error: "Failed to read file" }, 500);
+  }
+});

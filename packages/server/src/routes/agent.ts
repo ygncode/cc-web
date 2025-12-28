@@ -20,9 +20,11 @@ agentRoutes.post("/query", async (c) => {
     agentSessionId?: string;
     model?: string;
     attachments?: Attachment[];
+    budgetTokens?: number;
+    planMode?: boolean;
   }>();
 
-  const { prompt, sessionId, agentSessionId, model, attachments } = body;
+  const { prompt, sessionId, agentSessionId, model, attachments, budgetTokens, planMode } = body;
 
   if (!prompt) {
     return c.json({ error: "Prompt is required" }, 400);
@@ -67,6 +69,8 @@ agentRoutes.post("/query", async (c) => {
         cwd,
         sessionId: agentSessionId,
         model,
+        budgetTokens,
+        planMode,
         abortSignal: abortController.signal,
       })) {
         // Capture agent session ID for resume capability

@@ -40,7 +40,7 @@ export function WelcomeState() {
       </div>
 
       {/* Done message */}
-      <div className="bg-surface rounded-lg px-4 py-3 inline-block">
+      <div className="bg-surface rounded-lg px-4 py-3 w-full">
         <p className="text-[13px] text-text font-medium mb-0.5">
           Done! You're in an isolated copy of your codebase.
         </p>

@@ -89,7 +89,7 @@ export function SessionTabs() {
                 {session.name}
               </span>
             )}
-            {sessions.length > 1 && !isEditing && (
+            {!isEditing && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();

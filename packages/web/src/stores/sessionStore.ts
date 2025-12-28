@@ -14,6 +14,7 @@ export interface Message {
   role: "user" | "assistant" | "system" | "tool" | "task";
   content: unknown;
   timestamp: Date;
+  endTime?: Date;  // When the message/response completed
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolResult?: unknown;
@@ -43,6 +44,7 @@ interface SessionState {
   sessions: Session[];
   activeSessionId: string | null;
   messages: Map<string, Message[]>;
+  loadingSessionIds: Set<string>;  // Track which sessions are currently loading
   isLoading: boolean;
   hasFetched: boolean;
 
@@ -52,8 +54,11 @@ interface SessionState {
   setActiveSession: (id: string) => void;
   deleteSession: (id: string) => Promise<void>;
   renameSession: (id: string, name: string) => Promise<void>;
+  setAgentSessionId: (sessionId: string, agentSessionId: string) => void;
+  getAgentSessionId: (sessionId: string) => string | undefined;
+  setSessionLoading: (sessionId: string, loading: boolean) => void;
+  isSessionLoading: (sessionId: string) => boolean;
   addMessage: (sessionId: string, message: Omit<Message, "id" | "timestamp">) => string;
-  updateLastMessage: (sessionId: string, content: unknown) => void;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
   getMessages: (sessionId: string) => Message[];
 }
@@ -62,6 +67,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   messages: new Map(),
+  loadingSessionIds: new Set(),
   isLoading: false,
   hasFetched: false,
 
@@ -87,7 +93,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const data = await api.createSession(name);
       set((state) => ({
-        sessions: [data.session, ...state.sessions],
+        sessions: [...state.sessions, data.session],
         activeSessionId: data.session.id,
       }));
       return data.session;
@@ -138,6 +144,34 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
+  setAgentSessionId: (sessionId: string, agentSessionId: string) => {
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, agentSessionId } : s
+      ),
+    }));
+  },
+
+  getAgentSessionId: (sessionId: string) => {
+    return get().sessions.find((s) => s.id === sessionId)?.agentSessionId;
+  },
+
+  setSessionLoading: (sessionId: string, loading: boolean) => {
+    set((state) => {
+      const newLoadingIds = new Set(state.loadingSessionIds);
+      if (loading) {
+        newLoadingIds.add(sessionId);
+      } else {
+        newLoadingIds.delete(sessionId);
+      }
+      return { loadingSessionIds: newLoadingIds };
+    });
+  },
+
+  isSessionLoading: (sessionId: string) => {
+    return get().loadingSessionIds.has(sessionId);
+  },
+
   addMessage: (sessionId: string, message: Omit<Message, "id" | "timestamp">) => {
     const messageId = crypto.randomUUID();
     set((state) => {
@@ -154,24 +188,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return { messages: newMessages };
     });
     return messageId;
-  },
-
-  updateLastMessage: (sessionId: string, content: unknown) => {
-    set((state) => {
-      const newMessages = new Map(state.messages);
-      const sessionMessages = [...(newMessages.get(sessionId) || [])];
-
-      if (sessionMessages.length > 0) {
-        const lastMessage = sessionMessages[sessionMessages.length - 1];
-        sessionMessages[sessionMessages.length - 1] = {
-          ...lastMessage,
-          content,
-        };
-        newMessages.set(sessionId, sessionMessages);
-      }
-
-      return { messages: newMessages };
-    });
   },
 
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => {

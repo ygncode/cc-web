@@ -17,7 +17,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  const handleScroll = useCallback(() => {
+  const checkScrollPosition = useCallback(() => {
     if (!scrollContainerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
@@ -28,9 +28,31 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     setShowScrollButton(hasScrollableContent && distanceFromBottom > 100);
   }, []);
 
+  const handleScroll = useCallback(() => {
+    checkScrollPosition();
+  }, [checkScrollPosition]);
+
+  // Auto-scroll when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Check scroll position when content changes (expand/collapse)
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Use ResizeObserver to detect content size changes
+    const resizeObserver = new ResizeObserver(() => {
+      checkScrollPosition();
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [checkScrollPosition]);
 
   return (
     <div

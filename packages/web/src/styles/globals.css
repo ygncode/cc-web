@@ -111,3 +111,71 @@ code {
 .select-none {
   user-select: none;
 }
+
+/* Plan mode animated border - marching ants effect */
+.plan-mode-border {
+  position: relative;
+  border: 2px dashed transparent !important;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.plan-mode-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background:
+    /* Top border */
+    repeating-linear-gradient(
+      90deg,
+      var(--color-accent) 0px,
+      var(--color-accent) 6px,
+      transparent 6px,
+      transparent 12px
+    ) 0 0 / 100% 2px no-repeat,
+    /* Bottom border */
+    repeating-linear-gradient(
+      90deg,
+      var(--color-accent) 0px,
+      var(--color-accent) 6px,
+      transparent 6px,
+      transparent 12px
+    ) 0 100% / 100% 2px no-repeat,
+    /* Left border */
+    repeating-linear-gradient(
+      180deg,
+      var(--color-accent) 0px,
+      var(--color-accent) 6px,
+      transparent 6px,
+      transparent 12px
+    ) 0 0 / 2px 100% no-repeat,
+    /* Right border */
+    repeating-linear-gradient(
+      180deg,
+      var(--color-accent) 0px,
+      var(--color-accent) 6px,
+      transparent 6px,
+      transparent 12px
+    ) 100% 0 / 2px 100% no-repeat;
+  animation: marchingAnts 0.5s linear infinite;
+  pointer-events: none;
+  border-radius: 1rem;
+}
+
+@keyframes marchingAnts {
+  0% {
+    background-position:
+      0px 0,
+      12px 100%,
+      0 0px,
+      100% 12px;
+  }
+  100% {
+    background-position:
+      12px 0,
+      0px 100%,
+      0 12px,
+      100% 0px;
+  }
+}

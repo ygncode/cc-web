@@ -69,21 +69,17 @@ export function createApp(options: CreateAppOptions) {
 
   // WebSocket handler for terminal
   const websocket = {
-    message(ws: ServerWebSocket<{ terminalId: string }>, message: string | Buffer) {
-      // Handle terminal input - will be implemented in terminal service
-      const { terminalId } = ws.data;
-      // terminalService.write(terminalId, message.toString());
+    message(ws: ServerWebSocket<{ terminalId: string }>, _message: string | Buffer) {
+      // Handle terminal input - placeholder for terminal service integration
+      console.log("Terminal WebSocket message received for:", ws.data.terminalId);
     },
     open(ws: ServerWebSocket<{ terminalId: string }>) {
       console.log("Terminal WebSocket connected:", ws.data.terminalId);
     },
     close(ws: ServerWebSocket<{ terminalId: string }>) {
       console.log("Terminal WebSocket closed:", ws.data.terminalId);
-      // terminalService.destroy(ws.data.terminalId);
     },
   };
 
   return { fetch: app.fetch, websocket };
 }
-
-export { agentRoutes, sessionRoutes, fileRoutes, terminalRoutes };

@@ -12,29 +12,36 @@ interface MessageGroup {
   messages: MessageType[];
   taskMessage?: MessageType;
   nestedToolMessages?: MessageType[];
+  associatedToolMessages?: MessageType[]; // Tools associated with assistant message
   id: string;
 }
 
-// Group messages: task messages with their nested tool calls, and standalone tool calls
+// Check if a message is a streaming placeholder (loading state)
+function isStreamingPlaceholder(message: MessageType): boolean {
+  return (
+    message.role === "assistant" &&
+    (message as any).isStreaming === true &&
+    !message.content
+  );
+}
+
+// Group messages: task messages with their nested tool calls, tools associated with assistant messages
 function groupMessages(messages: MessageType[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
   let currentTaskMessage: MessageType | null = null;
   let currentTaskToolMessages: MessageType[] = [];
-  let standaloneToolGroup: MessageType[] = [];
+  let lastAssistantGroupIndex: number = -1; // Track last assistant message group
+  let streamingPlaceholder: MessageType | null = null;
 
   for (const message of messages) {
+    // Capture streaming placeholder to render at the end
+    if (isStreamingPlaceholder(message)) {
+      streamingPlaceholder = message;
+      continue;
+    }
+
     // Handle task messages
     if (message.role === "task") {
-      // Flush any standalone tool messages first
-      if (standaloneToolGroup.length > 0) {
-        groups.push({
-          type: "tools",
-          messages: standaloneToolGroup,
-          id: `tools-${standaloneToolGroup[0].id}`,
-        });
-        standaloneToolGroup = [];
-      }
-
       // Flush previous task if any
       if (currentTaskMessage) {
         groups.push({
@@ -57,24 +64,20 @@ function groupMessages(messages: MessageType[]): MessageGroup[] {
       if (currentTaskMessage) {
         // Tool belongs to current task
         currentTaskToolMessages.push(message);
-      } else {
-        // Standalone tool
-        standaloneToolGroup.push(message);
+      } else if (lastAssistantGroupIndex >= 0) {
+        // Associate tool with last assistant message
+        const lastAssistantGroup = groups[lastAssistantGroupIndex];
+        if (!lastAssistantGroup.associatedToolMessages) {
+          lastAssistantGroup.associatedToolMessages = [];
+        }
+        lastAssistantGroup.associatedToolMessages.push(message);
       }
+      // If no assistant message yet, ignore the tool (shouldn't happen in practice)
       continue;
     }
 
     // Handle regular messages (user, assistant, system)
-    // Flush any pending groups first
-    if (standaloneToolGroup.length > 0) {
-      groups.push({
-        type: "tools",
-        messages: standaloneToolGroup,
-        id: `tools-${standaloneToolGroup[0].id}`,
-      });
-      standaloneToolGroup = [];
-    }
-
+    // Flush any pending task
     if (currentTaskMessage) {
       groups.push({
         type: "task",
@@ -88,22 +91,20 @@ function groupMessages(messages: MessageType[]): MessageGroup[] {
     }
 
     // Add regular message
-    groups.push({
+    const newGroup: MessageGroup = {
       type: "message",
       messages: [message],
       id: message.id,
-    });
+    };
+    groups.push(newGroup);
+
+    // Track assistant messages so we can associate tools with them
+    if (message.role === "assistant") {
+      lastAssistantGroupIndex = groups.length - 1;
+    }
   }
 
-  // Flush remaining groups
-  if (standaloneToolGroup.length > 0) {
-    groups.push({
-      type: "tools",
-      messages: standaloneToolGroup,
-      id: `tools-${standaloneToolGroup[0].id}`,
-    });
-  }
-
+  // Flush remaining task
   if (currentTaskMessage) {
     groups.push({
       type: "task",
@@ -112,6 +113,18 @@ function groupMessages(messages: MessageType[]): MessageGroup[] {
       nestedToolMessages: currentTaskToolMessages,
       id: `task-${currentTaskMessage.id}`,
     });
+  }
+
+  // Add streaming placeholder at the end so loading indicator appears below messages
+  if (streamingPlaceholder) {
+    const placeholderGroup: MessageGroup = {
+      type: "message",
+      messages: [streamingPlaceholder],
+      id: streamingPlaceholder.id,
+    };
+    groups.push(placeholderGroup);
+    // Associate any remaining tools with the streaming placeholder
+    lastAssistantGroupIndex = groups.length - 1;
   }
 
   return groups;
@@ -132,16 +145,22 @@ export function MessageList({ messages }: MessageListProps) {
             />
           );
         }
+        // Render standalone tool call blocks
         if (group.type === "tools") {
           return (
             <ToolCallBlock
               key={group.id}
               toolMessages={group.messages}
-              assistantMessageCount={1}
             />
           );
         }
-        return <Message key={group.id} message={group.messages[0]} />;
+        return (
+          <Message
+            key={group.id}
+            message={group.messages[0]}
+            associatedToolMessages={group.associatedToolMessages}
+          />
+        );
       })}
     </div>
   );

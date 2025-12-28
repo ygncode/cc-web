@@ -27,6 +27,8 @@ export interface QueryOptions {
   cwd: string;
   sessionId?: string;
   model?: string;
+  budgetTokens?: number;
+  planMode?: boolean;
   abortSignal?: AbortSignal;
 }
 
@@ -36,19 +38,13 @@ export interface QueryOptions {
 export async function* executeQuery(
   options: QueryOptions
 ): AsyncGenerator<AgentMessage> {
-  const { prompt, cwd, model, abortSignal } = options;
+  const { prompt, cwd, sessionId: existingSessionId, model, budgetTokens, planMode, abortSignal } = options;
 
   // Resolve model ID to full SDK model name
   const resolvedModel = model ? MODEL_ID_MAP[model] || model : undefined;
 
-  // Generate a session ID
-  const sessionId = crypto.randomUUID();
-
-  yield {
-    type: "system",
-    subtype: "init",
-    sessionId,
-  };
+  // Track the SDK's session ID (will be set from SDK system init message)
+  let sdkSessionId: string | undefined = existingSessionId;
 
   try {
     const sdkOptions = {
@@ -56,9 +52,16 @@ export async function* executeQuery(
       permissionMode: "bypassPermissions" as const,
       cwd,
       ...(resolvedModel && { model: resolvedModel }),
+      // Resume from existing session if we have one
+      ...(existingSessionId && { resume: existingSessionId }),
+      // Extended thinking budget tokens (enables thinking when set)
+      ...(budgetTokens && { thinkingBudgetTokens: budgetTokens }),
+      // Plan mode - tells the agent to plan before executing
+      ...(planMode && { planMode: true }),
     };
 
     console.log("[agent] Starting SDK query with options:", sdkOptions);
+    console.log("[agent] Resuming session:", existingSessionId || "none (new session)");
 
     for await (const message of query({ prompt, options: sdkOptions })) {
       console.log("[agent] Received SDK message:", JSON.stringify(message, null, 2));
@@ -72,7 +75,18 @@ export async function* executeQuery(
       // Map SDK messages to our AgentMessage format
       const sdkMsg = message as SDKMessage;
 
-      if (sdkMsg.type === "assistant") {
+      if (sdkMsg.type === "system" && (sdkMsg as { subtype?: string }).subtype === "init") {
+        // Capture the SDK's session ID from its init message
+        sdkSessionId = (sdkMsg as { session_id: string }).session_id;
+        console.log("[agent] SDK session ID:", sdkSessionId);
+
+        // Yield our init message with the SDK's session ID
+        yield {
+          type: "system",
+          subtype: "init",
+          sessionId: sdkSessionId,
+        };
+      } else if (sdkMsg.type === "assistant") {
         // Extract text content from assistant message
         const content = sdkMsg.message?.content;
         let textContent = "";
@@ -87,6 +101,7 @@ export async function* executeQuery(
                 type: "tool_call",
                 toolName: block.name,
                 toolInput: block.input as Record<string, unknown>,
+                toolId: block.id,
               };
             }
           }
@@ -113,6 +128,7 @@ export async function* executeQuery(
                   typeof block.content === "string"
                     ? block.content
                     : JSON.stringify(block.content),
+                toolId: block.tool_use_id,
               };
             }
           }
@@ -121,10 +137,10 @@ export async function* executeQuery(
         yield {
           type: "result",
           result: (sdkMsg as { result?: string }).result || "Query completed",
-          sessionId,
+          sessionId: sdkSessionId,
         };
       } else if (sdkMsg.type === "system") {
-        // SDK system messages (session info, etc.)
+        // Other SDK system messages (status, etc.)
         console.log("[agent] SDK system message:", sdkMsg);
       } else {
         // Log unknown message types for debugging
@@ -136,7 +152,7 @@ export async function* executeQuery(
     yield {
       type: "result",
       result: "Query completed",
-      sessionId,
+      sessionId: sdkSessionId,
     };
   } catch (error) {
     console.error("[agent] Error in executeQuery:", error);
@@ -147,17 +163,3 @@ export async function* executeQuery(
   }
 }
 
-/**
- * Simple one-shot query that returns all messages
- */
-export async function queryAgent(
-  options: QueryOptions
-): Promise<AgentMessage[]> {
-  const messages: AgentMessage[] = [];
-
-  for await (const message of executeQuery(options)) {
-    messages.push(message);
-  }
-
-  return messages;
-}

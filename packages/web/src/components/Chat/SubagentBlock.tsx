@@ -37,7 +37,19 @@ export function SubagentBlock({
   const [copied, setCopied] = useState(false);
   const [elapsedTime, setElapsedTime] = useState<string>("");
 
-  const isLoading = taskMessage.isTaskLoading ?? false;
+  // Check if the task is explicitly complete (has an end time)
+  const isTaskComplete = taskMessage.taskEndTime !== undefined;
+
+  // Check if any nested tools are still loading (no result)
+  const hasLoadingNestedTools = nestedToolMessages.some(
+    msg => msg.toolResult === undefined || msg.toolResult === null
+  );
+
+  // If task is complete, don't show loading regardless of nested tool states
+  // (tool results can arrive out of order, leaving some without results)
+  const isLoading = isTaskComplete
+    ? false
+    : (taskMessage.isTaskLoading ?? false) || hasLoadingNestedTools;
   const taskType = taskMessage.taskType || "Task";
   const taskDescription = taskMessage.taskDescription || "Running task...";
   const toolCount = taskMessage.taskToolCount ?? nestedToolMessages.length;
@@ -149,20 +161,80 @@ export function SubagentBlock({
             )
           )}
 
-          {/* Copy button (visible on hover) */}
-          <button
-            onClick={handleCopy}
-            className="p-1 hover:bg-surface rounded transition-colors opacity-0 group-hover:opacity-100"
-            title="Copy task details"
-          >
-            {copied ? (
-              <Check size={14} className="text-accent" />
-            ) : (
-              <Copy size={14} className="text-text-secondary" />
-            )}
-          </button>
+          {/* Copy button (visible on hover, only when complete) */}
+          {!isLoading && (
+            <button
+              onClick={handleCopy}
+              className="p-1 hover:bg-surface rounded transition-colors opacity-0 group-hover:opacity-100"
+              title="Copy task details"
+            >
+              {copied ? (
+                <Check size={14} className="text-accent" />
+              ) : (
+                <Copy size={14} className="text-text-secondary" />
+              )}
+            </button>
+          )}
         </div>
       </button>
+
+      {/* Result Preview (shown when collapsed and task is complete) */}
+      {!isExpanded && !isLoading && taskMessage.taskResult && (
+        <div className="mt-3 text-[14px] text-text leading-relaxed">
+          <ReactMarkdown
+              components={{
+                p({ children }) {
+                  return <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>;
+                },
+                // Lists with proper indentation and spacing
+                ul({ children }) {
+                  return <ul className="list-disc pl-6 mb-3 space-y-1.5">{children}</ul>;
+                },
+                ol({ children }) {
+                  return <ol className="list-decimal pl-6 mb-3 space-y-1.5">{children}</ol>;
+                },
+                li({ children }) {
+                  return <li className="leading-relaxed">{children}</li>;
+                },
+                // Inline code styling
+                code({ className, children, ...props }) {
+                  const isInline = !className;
+                  if (isInline) {
+                    return (
+                      <code
+                        className="bg-surface-hover px-1.5 py-0.5 rounded text-[13px] font-mono text-text"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+                  return (
+                    <pre className="bg-surface rounded-lg p-3 my-3 overflow-x-auto text-[13px] font-mono">
+                      <code {...props}>{children}</code>
+                    </pre>
+                  );
+                },
+                // Headings
+                h1({ children }) {
+                  return <h1 className="text-xl font-bold text-text mt-6 mb-3 first:mt-0">{children}</h1>;
+                },
+                h2({ children }) {
+                  return <h2 className="text-lg font-bold text-text mt-5 mb-2 first:mt-0">{children}</h2>;
+                },
+                h3({ children }) {
+                  return <h3 className="text-base font-semibold text-text mt-4 mb-2 first:mt-0">{children}</h3>;
+                },
+                // Strong/Bold text
+                strong({ children }) {
+                  return <strong className="font-semibold text-text">{children}</strong>;
+                },
+              }}
+            >
+              {taskMessage.taskResult}
+            </ReactMarkdown>
+        </div>
+      )}
 
       {/* Expanded Content */}
       {isExpanded && (

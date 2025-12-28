@@ -104,6 +104,8 @@ export function streamAgentQuery(
   agentSessionId?: string,
   model?: string,
   attachments?: Attachment[],
+  budgetTokens?: number,
+  planMode?: boolean,
   onMessage?: (message: any) => void,
   onError?: (error: Error) => void,
   onDone?: () => void
@@ -116,7 +118,7 @@ export function streamAgentQuery(
       const response = await fetch(`${BASE_URL}/agent/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, sessionId, agentSessionId, model, attachments }),
+        body: JSON.stringify({ prompt, sessionId, agentSessionId, model, attachments, budgetTokens, planMode }),
         signal: abortController.signal,
       });
 

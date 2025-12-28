@@ -26,7 +26,7 @@ interface Session {
 }
 
 interface PromptInputProps {
-  onSend: (prompt: string, model: string, files: File[]) => void;
+  onSend: (prompt: string, model: string, files: File[], thinkLevel: ThinkLevel, planMode: boolean) => void;
   onAbort: () => void;
   isLoading: boolean;
   disabled?: boolean;
@@ -34,6 +34,10 @@ interface PromptInputProps {
   activeSession?: Session | null;
   onSessionChange?: (sessionId: string) => void;
 }
+
+// Export ThinkLevel type and THINK_LEVELS for use in other components
+export type { ThinkLevel };
+export { THINK_LEVELS };
 
 // Hook for detecting clicks outside an element
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
@@ -112,6 +116,7 @@ export function PromptInput({
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [sessionDropdownOpen, setSessionDropdownOpen] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [filePreviewUrls, setFilePreviewUrls] = useState<Map<File, string>>(new Map());
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,6 +128,37 @@ export function PromptInput({
   useClickOutside(modelDropdownRef, useCallback(() => setModelDropdownOpen(false), []));
   useClickOutside(sessionDropdownRef, useCallback(() => setSessionDropdownOpen(false), []));
 
+  // Create preview URLs for image files
+  useEffect(() => {
+    const newUrls = new Map<File, string>();
+
+    attachedFiles.forEach((file) => {
+      if (file.type.startsWith("image/")) {
+        // Reuse existing URL if we have one
+        const existingUrl = filePreviewUrls.get(file);
+        if (existingUrl) {
+          newUrls.set(file, existingUrl);
+        } else {
+          newUrls.set(file, URL.createObjectURL(file));
+        }
+      }
+    });
+
+    // Revoke URLs that are no longer needed
+    filePreviewUrls.forEach((url, file) => {
+      if (!newUrls.has(file)) {
+        URL.revokeObjectURL(url);
+      }
+    });
+
+    setFilePreviewUrls(newUrls);
+
+    // Cleanup on unmount
+    return () => {
+      newUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [attachedFiles]);
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -131,8 +167,8 @@ export function PromptInput({
   }, [value]);
 
   const handleSubmit = () => {
-    if (value.trim() && !disabled && !isLoading) {
-      onSend(value.trim(), selectedModel, attachedFiles);
+    if (value.trim() && !disabled) {
+      onSend(value.trim(), selectedModel, attachedFiles, thinkLevel, planMode);
       setValue("");
       setAttachedFiles([]);
     }
@@ -197,6 +233,53 @@ export function PromptInput({
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const files: File[] = [];
+
+    // Check for files in clipboard (images, documents, etc.)
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      files.push(...Array.from(clipboardData.files));
+    }
+
+    // Also check clipboard items for images (handles screenshots)
+    if (clipboardData.items) {
+      for (const item of Array.from(clipboardData.items)) {
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file && !files.some((f) => f.name === file.name && f.size === file.size)) {
+            files.push(file);
+          }
+        }
+      }
+    }
+
+    // If we found files, add them to attachments
+    if (files.length > 0) {
+      // Generate proper names for pasted images (often have generic names)
+      const processedFiles = files.map((file) => {
+        if (file.type.startsWith("image/") && file.name === "image.png") {
+          // Create a more descriptive name for pasted screenshots
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+          const extension = file.type.split("/")[1] || "png";
+          return new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          });
+        }
+        return file;
+      });
+
+      setAttachedFiles((prev) => [...prev, ...processedFiles]);
+      // Don't prevent default if there's also text - allow text to be pasted
+      // Only prevent default if we're ONLY handling files
+      if (!clipboardData.getData("text/plain")) {
+        e.preventDefault();
+      }
+    }
+  };
+
   const selectedModelName = CLAUDE_MODELS.find((m) => m.id === selectedModel)?.name || "Opus 4.5";
   const showSessionSelector = sessions.length > 1;
   const thinkLabel = THINK_LEVELS[thinkLevel];
@@ -248,34 +331,75 @@ export function PromptInput({
         onDrop={handleDrop}
         className={`
           relative rounded-2xl transition-all duration-300
-          ${isDragging || planMode
+          ${isDragging
             ? "border-2 border-dashed border-accent"
-            : "border border-border-light"
+            : planMode
+              ? "plan-mode-border"
+              : "border border-border-light"
           }
           bg-surface
         `}
-        style={{
-          animation: planMode && !isDragging ? "borderDash 0.3s ease-in-out" : undefined,
-        }}
       >
         {/* Attached Files Preview */}
         {attachedFiles.length > 0 && (
           <div className="px-4 pt-3 flex flex-wrap gap-2">
-            {attachedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-1.5 px-2 py-1 bg-background border border-border-light rounded-md text-[12px] text-text-muted"
-              >
-                <Paperclip size={12} />
-                <span className="max-w-[150px] truncate">{file.name}</span>
-                <button
-                  onClick={() => handleRemoveFile(index)}
-                  className="p-0.5 hover:bg-surface-hover rounded transition-colors"
+            {attachedFiles.map((file, index) => {
+              const isImage = file.type.startsWith("image/");
+              const previewUrl = filePreviewUrls.get(file);
+
+              if (isImage) {
+                // Image file card with filename and IMAGE label
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 px-3 py-2 bg-background border border-border-light rounded-lg group"
+                  >
+                    <div className="w-10 h-10 rounded-md overflow-hidden border border-border-light bg-surface flex-shrink-0">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt={file.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-surface" />
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[13px] font-medium text-text truncate max-w-[150px]">
+                        {file.name}
+                      </span>
+                      <span className="text-[11px] text-text-secondary uppercase tracking-wide">
+                        IMAGE
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFile(index)}
+                      className="p-1 hover:bg-surface-hover rounded transition-colors opacity-0 group-hover:opacity-100 ml-auto"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              }
+
+              // Non-image file chip
+              return (
+                <div
+                  key={index}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-background border border-border-light rounded-md text-[12px] text-text-muted"
                 >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
+                  <Paperclip size={12} />
+                  <span className="max-w-[150px] truncate">{file.name}</span>
+                  <button
+                    onClick={() => handleRemoveFile(index)}
+                    className="p-0.5 hover:bg-surface-hover rounded transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -286,8 +410,9 @@ export function PromptInput({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Ask to make changes, @mention files, run /commands"
-            disabled={disabled || isLoading}
+            disabled={disabled}
             className="w-full bg-transparent text-text placeholder-text-secondary resize-none focus:outline-none text-[14px] min-h-[60px] max-h-[200px] pr-24"
             rows={2}
           />
