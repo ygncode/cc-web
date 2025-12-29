@@ -8,6 +8,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blocknote/core": "0.45.0",
+    "@blocknote/mantine": "0.45.0",
+    "@blocknote/react": "0.45.0",
+    "@mantine/core": "8.3.10",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "clsx": "^2.1.1",

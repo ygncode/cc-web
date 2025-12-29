@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { X, ChevronDown } from "lucide-react";
 import { useSessionStore } from "../../stores/sessionStore";
+import { useNoteStore } from "../../stores/noteStore";
 
 export function SessionTabs() {
   const { sessions, activeSessionId, setActiveSession, deleteSession, renameSession } =
     useSessionStore();
+  const { isActive: isNoteActive, setActive: setNoteActive } = useNoteStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -94,12 +96,13 @@ export function SessionTabs() {
             {/* Dropdown list */}
             <div className="absolute left-0 top-full mt-1 bg-surface border border-border rounded-md shadow-lg z-20 py-1 min-w-[200px] max-h-[300px] overflow-y-auto">
               {sessions.map((session) => {
-                const isActive = activeSessionId === session.id;
+                const isActive = activeSessionId === session.id && !isNoteActive;
                 return (
                   <div
                     key={session.id}
                     onClick={() => {
                       setActiveSession(session.id);
+                      setNoteActive(false);
                       setDropdownOpen(false);
                     }}
                     className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ${
@@ -145,13 +148,18 @@ export function SessionTabs() {
   return (
     <div className="flex items-center gap-0.5 overflow-x-auto">
       {sessions.map((session) => {
-        const isActive = activeSessionId === session.id;
+        const isActive = activeSessionId === session.id && !isNoteActive;
         const isEditing = editingId === session.id;
 
         return (
           <div
             key={session.id}
-            onClick={() => !isEditing && setActiveSession(session.id)}
+            onClick={() => {
+              if (!isEditing) {
+                setActiveSession(session.id);
+                setNoteActive(false);
+              }
+            }}
             onDoubleClick={() => handleDoubleClick(session.id, session.name)}
             className={`group flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer transition-colors ${
               isActive

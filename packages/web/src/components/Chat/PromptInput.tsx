@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Send, Square, Paperclip, FileText, Check, ChevronUp, ChevronDown, X } from "lucide-react";
 import { useCommandAutocomplete } from "../../hooks/useCommandAutocomplete";
 import { useFileMentionAutocomplete } from "../../hooks/useFileMentionAutocomplete";
@@ -48,6 +48,11 @@ interface PromptInputProps {
 // Export ThinkLevel type and THINK_LEVELS for use in other components
 export type { ThinkLevel };
 export { THINK_LEVELS };
+
+// Ref interface for external focus
+export interface PromptInputRef {
+  focus: () => void;
+}
 
 // Hook for detecting clicks outside an element
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
@@ -109,7 +114,7 @@ function BrainIcon({ className }: { className?: string }) {
   );
 }
 
-export function PromptInput({
+export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
   onSend,
   onAbort,
   isLoading,
@@ -117,7 +122,7 @@ export function PromptInput({
   sessions = [],
   activeSession,
   onSessionChange,
-}: PromptInputProps) {
+}, ref) => {
   const [value, setValue] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [thinkLevel, setThinkLevel] = useState<ThinkLevel>(0);
@@ -133,6 +138,11 @@ export function PromptInput({
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const sessionDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Expose focus method via ref
+  useImperativeHandle(ref, () => ({
+    focus: () => textareaRef.current?.focus()
+  }));
 
   // Command autocomplete
   const autocomplete = useCommandAutocomplete();
@@ -723,4 +733,6 @@ export function PromptInput({
       </div>
     </div>
   );
-}
+});
+
+PromptInput.displayName = "PromptInput";

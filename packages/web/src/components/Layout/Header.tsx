@@ -1,6 +1,7 @@
-import { Plus, History, PanelRight } from "lucide-react";
+import { Plus, History, PanelRight, StickyNote } from "lucide-react";
 import { useSessionStore } from "../../stores/sessionStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useNoteStore } from "../../stores/noteStore";
 import { SessionTabs } from "../Session/SessionTabs";
 import { FilePreviewTabs } from "../FilePreview/FilePreviewTabs";
 import { ThemeToggle } from "./ThemeToggle";
@@ -8,17 +9,20 @@ import { ThemeToggle } from "./ThemeToggle";
 export function Header() {
   const { createSession } = useSessionStore();
   const { showSidebar, toggleSidebar } = useLayoutStore();
+  const { isActive: isNoteActive, setActive: setNoteActive } = useNoteStore();
 
   return (
     <header className="h-11 bg-surface border-b border-border flex items-center px-2">
       {/* Left section - Logo and tabs */}
       <div className="flex items-center gap-1 flex-1 min-w-0">
-        {/* Logo */}
-        <div className="flex items-center gap-1.5 px-2 py-1">
-          <div className="w-5 h-5 rounded flex items-center justify-center">
-            <img src="/logo.png" alt="logo" className="w-4 h-4" />
-          </div>
-        </div>
+        {/* Note Icon */}
+        <button
+          onClick={() => setNoteActive(true)}
+          className={`flex items-center gap-1.5 px-2 py-1 hover:bg-surface-hover rounded transition-colors ${isNoteActive ? 'bg-surface-hover' : ''}`}
+          title="Notes"
+        >
+          <StickyNote size={16} className={isNoteActive ? 'text-text' : 'text-text-secondary'} />
+        </button>
 
         {/* Session Tabs */}
         <SessionTabs />

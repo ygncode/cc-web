@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { X } from "lucide-react";
 import { Header } from "./components/Layout/Header";
 import { ChatPanel } from "./components/Chat/ChatPanel";
-import { PromptInput } from "./components/Chat/PromptInput";
+import { PromptInput, type PromptInputRef } from "./components/Chat/PromptInput";
 import { FilePreviewPanel } from "./components/FilePreview/FilePreviewPanel";
 import { Sidebar } from "./components/Layout/Sidebar";
+import { NoteEditor, type NoteEditorRef } from "./components/Note/NoteEditor";
 import { useSessionStore } from "./stores/sessionStore";
+import { useNoteStore } from "./stores/noteStore";
 import { useLayoutStore } from "./stores/layoutStore";
 import { useFilePreviewStore } from "./stores/filePreviewStore";
 import { useCommandStore } from "./stores/commandStore";
@@ -14,6 +16,9 @@ import { useChatSession } from "./hooks/useChatSession";
 
 export default function App() {
   const { sessions, activeSessionId, setActiveSession, createSession, fetchSessions, hasFetched } = useSessionStore();
+  const isNoteActive = useNoteStore((state) => state.isActive);
+  const noteEditorRef = useRef<NoteEditorRef>(null);
+  const promptInputRef = useRef<PromptInputRef>(null);
   const fetchCustomCommands = useCommandStore((state) => state.fetchCustomCommands);
   const fetchSkills = useSkillStore((state) => state.fetchSkills);
   const { sidebarWidth, setSidebarWidth, showSidebar, toggleSidebar, theme } = useLayoutStore();
@@ -62,6 +67,22 @@ export default function App() {
     }
   }, [hasFetched, sessions.length, createSession]);
 
+  // Keyboard shortcut: Cmd+L / Ctrl+L to focus input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "l") {
+        e.preventDefault();
+        if (isNoteActive) {
+          noteEditorRef.current?.focus();
+        } else {
+          promptInputRef.current?.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isNoteActive]);
+
   const handleResizeSidebar = (e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -87,27 +108,32 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Content: File Preview or Chat Messages */}
+          {/* Content: Note Editor, File Preview, or Chat Messages */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {activeFileTabId ? (
+            {isNoteActive ? (
+              <NoteEditor ref={noteEditorRef} />
+            ) : activeFileTabId ? (
               <FilePreviewPanel />
             ) : (
               <ChatPanel messages={messages} />
             )}
           </div>
 
-          {/* Input Area - Always Visible */}
-          <div className="p-4 border-t border-border">
-            <PromptInput
-              onSend={handleSend}
-              onAbort={handleAbort}
-              isLoading={isLoading}
-              disabled={!activeSessionId}
-              sessions={sessions}
-              activeSession={sessions.find((s) => s.id === activeSessionId) || null}
-              onSessionChange={setActiveSession}
-            />
-          </div>
+          {/* Input Area - Hidden when Note is active */}
+          {!isNoteActive && (
+            <div className="p-4 border-t border-border">
+              <PromptInput
+                ref={promptInputRef}
+                onSend={handleSend}
+                onAbort={handleAbort}
+                isLoading={isLoading}
+                disabled={!activeSessionId}
+                sessions={sessions}
+                activeSession={sessions.find((s) => s.id === activeSessionId) || null}
+                onSessionChange={setActiveSession}
+              />
+            </div>
+          )}
         </div>
 
         {/* Resize Handle - Only show when sidebar is visible on desktop */}
