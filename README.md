@@ -1,5 +1,7 @@
 # cc-web
 
+> ⚠️ **Warning**: This project is still a work in progress. Most features might not work as expected. This is a vibe code project.
+
 A web-based UI for Claude AI, built on the Anthropic API. Access Claude's coding capabilities through a browser interface, perfect for remote access from mobile/tablet devices.
 
 ## Features

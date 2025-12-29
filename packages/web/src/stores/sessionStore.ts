@@ -29,6 +29,8 @@ export interface Message {
   taskToolCount?: number;   // Count of tool calls in this task
   isTaskLoading?: boolean;  // Whether task is still running
   taskResult?: string;      // Final result from the task
+  // Skill fields
+  activeSkill?: string;     // Name of skill used for this message
 }
 
 export interface Session {
@@ -61,6 +63,7 @@ interface SessionState {
   addMessage: (sessionId: string, message: Omit<Message, "id" | "timestamp">) => string;
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
   getMessages: (sessionId: string) => Message[];
+  clearMessages: (sessionId: string) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -210,5 +213,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   getMessages: (sessionId: string) => {
     return get().messages.get(sessionId) || [];
+  },
+
+  clearMessages: (sessionId: string) => {
+    set((state) => {
+      const newMessages = new Map(state.messages);
+      newMessages.set(sessionId, []);
+      return { messages: newMessages };
+    });
   },
 }));

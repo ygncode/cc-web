@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { Header } from "./components/Layout/Header";
 import { ChatPanel } from "./components/Chat/ChatPanel";
 import { PromptInput } from "./components/Chat/PromptInput";
@@ -7,13 +8,36 @@ import { Sidebar } from "./components/Layout/Sidebar";
 import { useSessionStore } from "./stores/sessionStore";
 import { useLayoutStore } from "./stores/layoutStore";
 import { useFilePreviewStore } from "./stores/filePreviewStore";
+import { useCommandStore } from "./stores/commandStore";
+import { useSkillStore } from "./stores/skillStore";
 import { useChatSession } from "./hooks/useChatSession";
 
 export default function App() {
   const { sessions, activeSessionId, setActiveSession, createSession, fetchSessions, hasFetched } = useSessionStore();
-  const { sidebarWidth, setSidebarWidth, theme } = useLayoutStore();
+  const fetchCustomCommands = useCommandStore((state) => state.fetchCustomCommands);
+  const fetchSkills = useSkillStore((state) => state.fetchSkills);
+  const { sidebarWidth, setSidebarWidth, showSidebar, toggleSidebar, theme } = useLayoutStore();
   const activeFileTabId = useFilePreviewStore((state) => state.activeTabId);
+  const closeTab = useFilePreviewStore((state) => state.closeTab);
+  const fileTabs = useFilePreviewStore((state) => state.tabs);
+  const activeFileTab = fileTabs.find(t => t.id === activeFileTabId);
   const { messages, isLoading, handleSend, handleAbort } = useChatSession(activeSessionId);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile view and auto-hide sidebar on mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Auto-hide sidebar when switching to mobile view
+      if (mobile && showSidebar) {
+        toggleSidebar();
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply theme class to HTML element
   useEffect(() => {
@@ -27,7 +51,9 @@ export default function App() {
 
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions]);
+    fetchCustomCommands();
+    fetchSkills();
+  }, [fetchSessions, fetchCustomCommands, fetchSkills]);
 
   useEffect(() => {
     // Create initial session only after fetching completes and if none exist
@@ -84,16 +110,58 @@ export default function App() {
           </div>
         </div>
 
-        {/* Resize Handle */}
-        <div
-          className="w-px bg-border hover:bg-accent cursor-col-resize flex-shrink-0 transition-colors"
-          onMouseDown={handleResizeSidebar}
-        />
+        {/* Resize Handle - Only show when sidebar is visible on desktop */}
+        {showSidebar && !isMobile && (
+          <div
+            className="w-px bg-border hover:bg-accent cursor-col-resize flex-shrink-0 transition-colors"
+            onMouseDown={handleResizeSidebar}
+          />
+        )}
 
-        {/* Sidebar */}
-        <div style={{ width: sidebarWidth }} className="flex-shrink-0">
-          <Sidebar />
-        </div>
+        {/* Sidebar - Desktop: side panel, Mobile: overlay */}
+        {showSidebar && !isMobile && (
+          <div style={{ width: sidebarWidth }} className="flex-shrink-0">
+            <Sidebar />
+          </div>
+        )}
+
+        {/* Mobile Sidebar Overlay */}
+        {showSidebar && isMobile && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={toggleSidebar}
+            />
+            {/* Sidebar Panel - Full Screen */}
+            <div className="fixed inset-0 w-full bg-background z-50">
+              <Sidebar onClose={toggleSidebar} />
+            </div>
+          </>
+        )}
+
+        {/* Mobile File Preview Overlay - on top of sidebar */}
+        {isMobile && showSidebar && activeFileTabId && (
+          <div className="fixed inset-0 w-full bg-background z-[60] flex flex-col">
+            {/* Header with close button */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+              <span className="text-[13px] text-text-secondary truncate flex-1">
+                {activeFileTab?.filename || 'File'}
+              </span>
+              <button
+                onClick={() => closeTab(activeFileTabId)}
+                className="p-1.5 hover:bg-surface-hover rounded transition-colors ml-2"
+                title="Close file"
+              >
+                <X size={18} className="text-text-secondary" />
+              </button>
+            </div>
+            {/* File content */}
+            <div className="flex-1 overflow-hidden">
+              <FilePreviewPanel />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

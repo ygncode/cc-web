@@ -6,6 +6,8 @@ import { agentRoutes } from "./routes/agent.js";
 import { sessionRoutes } from "./routes/session.js";
 import { fileRoutes } from "./routes/files.js";
 import { terminalRoutes } from "./routes/terminal.js";
+import { commandRoutes } from "./routes/commands.js";
+import { skillRoutes } from "./routes/skills.js";
 import type { ServerWebSocket } from "bun";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -50,6 +52,8 @@ export function createApp(options: CreateAppOptions) {
   app.route("/api/sessions", sessionRoutes);
   app.route("/api/files", fileRoutes);
   app.route("/api/terminal", terminalRoutes);
+  app.route("/api/commands", commandRoutes);
+  app.route("/api/skills", skillRoutes);
 
   // Health check
   app.get("/api/health", (c) => {

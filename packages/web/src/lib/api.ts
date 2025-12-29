@@ -95,6 +95,70 @@ export const api = {
       `/terminal/${terminalId}/cancel`,
       { method: "POST", body: JSON.stringify({ processId }) }
     ),
+
+  // Commands
+  getCommands: () =>
+    fetchJSON<{
+      commands: Array<{
+        name: string;
+        description: string;
+        prompt: string;
+        source: "global" | "project";
+        namespace?: string;
+        argumentHint?: string;
+        allowedTools?: string;
+      }>;
+      globalDir: string;
+      projectDir: string;
+    }>("/commands"),
+
+  // Skills
+  getSkills: () =>
+    fetchJSON<{
+      skills: Array<{
+        name: string;
+        description: string;
+        instructions: string;
+        source: "global" | "project";
+        basePath: string;
+        supportingFiles: string[];
+        scripts: string[];
+        allowedTools?: string[];
+        model?: string;
+      }>;
+      globalDir: string;
+      projectDir: string;
+    }>("/skills"),
+
+  getSkillFile: async (skillName: string, filePath: string): Promise<string> => {
+    const response = await fetch(
+      `${BASE_URL}/skills/${encodeURIComponent(skillName)}/file?path=${encodeURIComponent(filePath)}`
+    );
+    if (!response.ok) {
+      throw new Error("Failed to get skill file");
+    }
+    return response.text();
+  },
+
+  runSkillScript: async (
+    skillName: string,
+    scriptPath: string,
+    args?: string
+  ): Promise<string> => {
+    const response = await fetch(
+      `${BASE_URL}/skills/${encodeURIComponent(skillName)}/script`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: scriptPath, args }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Script execution failed" }));
+      throw new Error(error.error || "Script execution failed");
+    }
+    return response.text();
+  },
 };
 
 // SSE helper for streaming agent responses

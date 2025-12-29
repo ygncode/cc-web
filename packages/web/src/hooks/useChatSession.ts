@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { useSessionStore, type Attachment } from "../stores/sessionStore";
+import { useSkillStore } from "../stores/skillStore";
 import { streamAgentQuery, api } from "../lib/api";
 
 interface ActiveTask {
@@ -90,11 +91,42 @@ export function useChatSession(sessionId: string | null) {
       }
     }
 
-    // Add user message with attachments
+    // Check if prompt matches any skill
+    const { findMatchingSkill, setActiveSkill, clearActiveSkill } = useSkillStore.getState();
+    const matchingSkill = findMatchingSkill(prompt);
+
+    let enhancedPrompt = prompt;
+    let activeSkillName: string | undefined;
+
+    if (matchingSkill) {
+      setActiveSkill(matchingSkill);
+      activeSkillName = matchingSkill.name;
+
+      // Build skill context with available resources
+      const supportingFilesInfo = matchingSkill.supportingFiles.length > 0
+        ? `\n\nAvailable supporting files (read with Read tool if needed): ${matchingSkill.supportingFiles.join(", ")}`
+        : "";
+      const scriptsInfo = matchingSkill.scripts.length > 0
+        ? `\nAvailable scripts (execute with Bash tool if needed): ${matchingSkill.scripts.join(", ")}`
+        : "";
+
+      enhancedPrompt = `[Active Skill: ${matchingSkill.name}]
+
+${matchingSkill.instructions}${supportingFilesInfo}${scriptsInfo}
+
+---
+
+User request: ${prompt}`;
+    } else {
+      clearActiveSkill();
+    }
+
+    // Add user message with attachments and active skill
     addMessage(sessionId, {
       role: "user",
       content: prompt,
       attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+      activeSkill: activeSkillName,
     });
 
     // Add placeholder for assistant response and track its ID
@@ -107,7 +139,7 @@ export function useChatSession(sessionId: string | null) {
     let fullContent = "";
 
     const stream = streamAgentQuery(
-      prompt,
+      enhancedPrompt,
       sessionId,
       agentSessionId,
       model,

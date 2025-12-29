@@ -158,9 +158,19 @@ export function Message({ message, associatedToolMessages = [] }: MessageProps) 
   // User message: right-aligned with bubble
   if (isUser) {
     const hasAttachments = message.attachments && message.attachments.length > 0;
+    const hasActiveSkill = !!message.activeSkill;
 
     return (
       <div className="flex flex-col items-end gap-2 py-2">
+        {/* Active Skill Badge */}
+        {hasActiveSkill && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent/10 border border-accent/20 rounded-full">
+            <span className="text-[11px] font-medium text-accent">
+              Using: {message.activeSkill}
+            </span>
+          </div>
+        )}
+
         {/* Attachments */}
         {hasAttachments && (
           <div className="flex flex-wrap gap-2 justify-end max-w-[80%]">

@@ -1,11 +1,13 @@
-import { Plus, History } from "lucide-react";
+import { Plus, History, PanelRight } from "lucide-react";
 import { useSessionStore } from "../../stores/sessionStore";
+import { useLayoutStore } from "../../stores/layoutStore";
 import { SessionTabs } from "../Session/SessionTabs";
 import { FilePreviewTabs } from "../FilePreview/FilePreviewTabs";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const { createSession } = useSessionStore();
+  const { showSidebar, toggleSidebar } = useLayoutStore();
 
   return (
     <header className="h-11 bg-surface border-b border-border flex items-center px-2">
@@ -34,7 +36,7 @@ export function Header() {
         <FilePreviewTabs />
       </div>
 
-      {/* Right section - Theme Toggle and History */}
+      {/* Right section - Theme Toggle, History and Sidebar Toggle */}
       <div className="flex items-center gap-1">
         <ThemeToggle />
         <button
@@ -42,6 +44,13 @@ export function Header() {
           title="History"
         >
           <History size={16} className="text-text-secondary" />
+        </button>
+        <button
+          onClick={toggleSidebar}
+          className={`p-1.5 hover:bg-surface-hover rounded transition-colors ${!showSidebar ? 'bg-surface-hover' : ''}`}
+          title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+        >
+          <PanelRight size={16} className="text-text-secondary" />
         </button>
       </div>
     </header>

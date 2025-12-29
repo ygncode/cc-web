@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Square, Paperclip, FileText, Check, ChevronUp, ChevronDown, X } from "lucide-react";
+import { useCommandAutocomplete } from "../../hooks/useCommandAutocomplete";
+import { useFileMentionAutocomplete } from "../../hooks/useFileMentionAutocomplete";
+import { useCommandStore } from "../../stores/commandStore";
+import { useSessionStore } from "../../stores/sessionStore";
+import { useLayoutStore } from "../../stores/layoutStore";
+import { useFileStore } from "../../stores/fileStore";
+import { parseCommand, expandSkillPrompt } from "../../lib/commandParser";
+import { CommandAutocomplete } from "./CommandAutocomplete";
+import { FileMentionAutocomplete } from "./FileMentionAutocomplete";
+import type { CommandContext } from "../../types/commands";
 
 // Available Claude Code models
 const CLAUDE_MODELS = [
@@ -124,6 +134,41 @@ export function PromptInput({
   const sessionDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Command autocomplete
+  const autocomplete = useCommandAutocomplete();
+  const findCommand = useCommandStore((state) => state.findCommand);
+  const fetchCustomCommands = useCommandStore((state) => state.fetchCustomCommands);
+  const clearMessages = useSessionStore((state) => state.clearMessages);
+  const addMessage = useSessionStore((state) => state.addMessage);
+  const createSession = useSessionStore((state) => state.createSession);
+  const { setTheme, toggleTheme } = useLayoutStore();
+
+  // File mention autocomplete
+  const fileMention = useFileMentionAutocomplete();
+  const fetchFiles = useFileStore((state) => state.fetchFiles);
+  const recentFiles = useFileStore((state) => state.recentFiles);
+
+  // Fetch files on mount
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
+
+  // Global keyboard shortcut: Cmd+L (Mac) / Ctrl+L (Windows/Linux) to focus input
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Check for Cmd+L (Mac) or Ctrl+L (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, []);
+
   // Close dropdowns on outside click
   useClickOutside(modelDropdownRef, useCallback(() => setModelDropdownOpen(false), []));
   useClickOutside(sessionDropdownRef, useCallback(() => setSessionDropdownOpen(false), []));
@@ -166,15 +211,116 @@ export function PromptInput({
     }
   }, [value]);
 
-  const handleSubmit = () => {
-    if (value.trim() && !disabled) {
-      onSend(value.trim(), selectedModel, attachedFiles, thinkLevel, planMode);
-      setValue("");
-      setAttachedFiles([]);
+  const handleSubmit = async () => {
+    if (!value.trim() || disabled) return;
+
+    const trimmedValue = value.trim();
+
+    // Check if input is a command
+    const parsed = parseCommand(trimmedValue);
+
+    if (parsed) {
+      const command = findCommand(parsed.command);
+
+      if (command) {
+        // Create command context
+        const context: CommandContext = {
+          sessionId: activeSession?.id || null,
+          clearMessages,
+          createSession: async (name?: string) => {
+            await createSession(name);
+          },
+          setTheme,
+          toggleTheme,
+          addSystemMessage: (sessionId: string, content: string) => {
+            addMessage(sessionId, { role: "system", content });
+          },
+          sendPrompt: (prompt: string) => {
+            onSend(prompt, selectedModel, attachedFiles, thinkLevel, planMode);
+          },
+          reloadCommands: fetchCustomCommands,
+        };
+
+        if (command.type === "client") {
+          // Execute client-side command
+          await command.execute(parsed.args, context);
+          setValue("");
+          autocomplete.reset();
+          fileMention.reset();
+          return;
+        } else if (command.type === "skill") {
+          // Expand skill to prompt and send
+          const expandedPrompt = expandSkillPrompt(command.prompt, parsed.args);
+          onSend(expandedPrompt, selectedModel, attachedFiles, thinkLevel, planMode);
+          setValue("");
+          setAttachedFiles([]);
+          autocomplete.reset();
+          fileMention.reset();
+          return;
+        }
+      }
+      // Unknown command - send as regular message
     }
+
+    // Regular message flow
+    onSend(trimmedValue, selectedModel, attachedFiles, thinkLevel, planMode);
+    setValue("");
+    setAttachedFiles([]);
+    autocomplete.reset();
+    fileMention.reset();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle file mention autocomplete first (takes priority)
+    if (fileMention.isOpen && fileMention.matches.length > 0) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        fileMention.handleKeyDown(e);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        const selectedFile = fileMention.matches[fileMention.selectedIndex];
+        if (selectedFile) {
+          e.preventDefault();
+          const cursorPos = textareaRef.current?.selectionStart || 0;
+          const { newValue, newCursorPos } = fileMention.selectFile(selectedFile, value, cursorPos);
+          setValue(newValue);
+          // Set cursor position after state update
+          setTimeout(() => {
+            textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+          }, 0);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        fileMention.close();
+        return;
+      }
+    }
+
+    // Handle command autocomplete
+    if (autocomplete.isOpen && autocomplete.matches.length > 0) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        autocomplete.handleKeyDown(e);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        const selectedCommand = autocomplete.matches[autocomplete.selectedIndex]?.command;
+        if (selectedCommand) {
+          e.preventDefault();
+          const newValue = autocomplete.selectCommand(selectedCommand);
+          setValue(newValue);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        autocomplete.close();
+        return;
+      }
+    }
+
+    // Regular enter to submit
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -405,10 +551,48 @@ export function PromptInput({
 
         {/* Textarea Area */}
         <div className="relative px-4 pt-3 pb-2">
+          {/* File Mention Autocomplete */}
+          {fileMention.isOpen && (
+            <FileMentionAutocomplete
+              matches={fileMention.matches}
+              selectedIndex={fileMention.selectedIndex}
+              recentFiles={recentFiles}
+              onSelect={(file) => {
+                const cursorPos = textareaRef.current?.selectionStart || 0;
+                const { newValue, newCursorPos } = fileMention.selectFile(file, value, cursorPos);
+                setValue(newValue);
+                setTimeout(() => {
+                  textareaRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+                  textareaRef.current?.focus();
+                }, 0);
+              }}
+              onClose={fileMention.close}
+            />
+          )}
+
+          {/* Command Autocomplete */}
+          {autocomplete.isOpen && autocomplete.matches.length > 0 && (
+            <CommandAutocomplete
+              matches={autocomplete.matches}
+              selectedIndex={autocomplete.selectedIndex}
+              onSelect={(command) => {
+                const newValue = autocomplete.selectCommand(command);
+                setValue(newValue);
+              }}
+              onClose={autocomplete.close}
+            />
+          )}
+
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              const cursorPos = e.target.selectionStart || 0;
+              setValue(newValue);
+              autocomplete.handleInputChange(newValue, cursorPos);
+              fileMention.handleInputChange(newValue, cursorPos);
+            }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder="Ask to make changes, @mention files, run /commands"
@@ -417,9 +601,9 @@ export function PromptInput({
             rows={2}
           />
 
-          {/* Keyboard Shortcut Hint */}
+          {/* Keyboard Shortcut Hint - Shows ⌘L on Mac, Ctrl+L on others */}
           <span className="absolute top-3 right-4 text-[12px] text-text-secondary">
-            ⌘L to focus
+            {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform) ? '⌘L' : 'Ctrl+L'} to focus
           </span>
         </div>
 
