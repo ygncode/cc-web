@@ -22,7 +22,7 @@ A web-based UI for Claude AI, built on the Anthropic API. Access Claude's coding
 ## Requirements
 
 - [Bun](https://bun.sh/) runtime (v1.0+)
-- Anthropic API key
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and logged in
 
 ## Installation
 
@@ -39,10 +39,10 @@ bun run build
 
 ## Usage
 
-1. Set your Anthropic API key:
+1. Make sure you're logged in to Claude Code:
 
 ```bash
-export ANTHROPIC_API_KEY=your-api-key
+claude login
 ```
 
 2. Navigate to your project directory:
