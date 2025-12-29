@@ -4,6 +4,12 @@
 
 A web-based UI for Claude AI, built on the Anthropic API. Access Claude's coding capabilities through a browser interface, perfect for remote access from mobile/tablet devices.
 
+## TODO
+
+- [ ] Chat history persistence
+- [ ] Terminal - needs more testing
+- [ ] Plan mode - needs more testing
+
 ## Features
 
 - **Chat Interface**: Interactive chat with Claude AI
